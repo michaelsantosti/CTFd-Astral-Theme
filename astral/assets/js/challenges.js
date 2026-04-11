@@ -1,10 +1,10 @@
 import Alpine from "alpinejs";
-import dayjs from "dayjs";
 
 import CTFd from "./index";
 
 import { Modal, Tab, Tooltip } from "bootstrap";
 import highlight from "./theme/highlight";
+import { intl } from "./theme/times";
 
 function addTargetBlank(html) {
   let dom = new DOMParser();
@@ -31,6 +31,13 @@ Alpine.data("Hint", () => ({
   async showHint(event) {
     if (event.target.open) {
       let response = await CTFd.pages.challenge.loadHint(this.id);
+
+      // Hint has some kind of prerequisite or access prevention
+      if (response.errors) {
+        event.target.open = false;
+        CTFd._functions.challenge.displayUnlockError(response);
+        return;
+      }
       let hint = response.data;
       if (hint.content) {
         this.html = addTargetBlank(hint.html);
@@ -61,10 +68,16 @@ Alpine.data("Challenge", () => ({
   submission: "",
   tab: null,
   solves: [],
+  submissions: [],
+  solution: null,
   response: null,
   share_url: null,
   max_attempts: 0,
   attempts: 0,
+  ratingValue: 0,
+  selectedRating: 0,
+  ratingReview: "",
+  ratingSubmitted: false,
 
   async init() {
     highlight();
@@ -97,10 +110,6 @@ Alpine.data("Challenge", () => ({
     return styles;
   },
 
-  async init() {
-    highlight();
-  },
-
   async showChallenge() {
     new Tab(this.$el).show();
   },
@@ -108,10 +117,43 @@ Alpine.data("Challenge", () => ({
   async showSolves() {
     this.solves = await CTFd.pages.challenge.loadSolves(this.id);
     this.solves.forEach(solve => {
-      solve.date = dayjs(solve.date).format("MMMM Do, h:mm:ss A");
+      solve.date = intl.format(new Date(solve.date));
       return solve;
     });
     new Tab(this.$el).show();
+  },
+
+  async showSubmissions() {
+    let response = await CTFd.pages.users.userSubmissions("me", this.id);
+    this.submissions = response.data;
+    this.submissions.forEach(s => {
+      s.date = intl.format(new Date(s.date));
+      return s;
+    });
+    new Tab(this.$el).show();
+  },
+
+  getSolutionId() {
+    let data = Alpine.store("challenge").data;
+    return data.solution_id;
+  },
+
+  getSolutionState() {
+    let data = Alpine.store("challenge").data;
+    return data.solution_state;
+  },
+
+  setSolutionId(solutionId) {
+    Alpine.store("challenge").data.solution_id = solutionId;
+  },
+
+  async showSolution() {
+    let solution_id = this.getSolutionId();
+    CTFd._functions.challenge.displaySolution = solution => {
+      this.solution = solution.html;
+      new Tab(this.$el).show();
+    };
+    await CTFd.pages.challenge.displaySolution(solution_id);
   },
 
   getNextId() {
@@ -168,6 +210,12 @@ Alpine.data("Challenge", () => ({
       this.submission,
     );
 
+    // Challenges page might be visible to anonymous users, redirect to login on submit
+    if (this.response.data.status === "authentication_required") {
+      window.location = `${CTFd.config.urlRoot}/login?next=${CTFd.config.urlRoot}${window.location.pathname}${window.location.hash}`;
+      return;
+    }
+
     await this.renderSubmissionResponse();
   },
 
@@ -176,13 +224,45 @@ Alpine.data("Challenge", () => ({
       this.submission = "";
     }
 
+    // Decide whether to check for the solution
+    if (this.getSolutionId() == null) {
+      if (
+        CTFd.pages.challenge.checkSolution(
+          this.getSolutionState(),
+          Alpine.store("challenge").data,
+          this.response.data.status,
+        )
+      ) {
+        let data = await CTFd.pages.challenge.getSolution(this.id);
+        this.setSolutionId(data.id);
+      }
+    }
+
     // Increment attempts counter
-    if (this.max_attempts > 0 && this.response.data.status != "already_solved") {
+    if (
+      this.max_attempts > 0 &&
+      this.response.data.status != "already_solved" &&
+      this.response.data.status != "ratelimited"
+    ) {
       this.attempts += 1;
     }
 
     // Dispatch load-challenges event to call loadChallenges in the ChallengeBoard
     this.$dispatch("load-challenges");
+  },
+
+  async submitRating() {
+    const response = await CTFd.pages.challenge.submitRating(
+      this.id,
+      this.selectedRating,
+      this.ratingReview,
+    );
+    if (response.value) {
+      this.ratingValue = this.selectedRating;
+      this.ratingSubmitted = true;
+    } else {
+      alert("Error submitting rating");
+    }
   },
 }));
 
