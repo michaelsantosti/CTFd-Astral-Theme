@@ -17,27 +17,71 @@ A CTFd 8-bit space theme for versions >= 3.7.4. Created by [JusCodin](https://gi
 - (Somewhat) Responsive design
 - Bigger file download buttons
 - ECharts for scoreboard graph now refreshes on color mode change
+- Challenge ratings (upvote/downvote + review) with pt-br / EN translation
+- Self-submissions tab (when enabled in CTFd admin)
+- Solution / writeup tab (when enabled in CTFd admin)
+- Hint titles + unlock-error handling
+- Localized date formatting (pt-br / EN) via Intl.DateTimeFormat
+- Language switcher in the navbar
 
 <sup>[1]: The title screen only works after modifying CTFd's source code. See [Custom Title Screen](#custom-title-screen)</sup>
 
 ## Installation
 
-Installation of CTFd themes are relatively simple. You can follow the steps below either in your cloned CTFd repository or in your CTFd Docker container.
+> **⚠ IMPORTANT — you MUST rebuild the theme before installing it.**
+> The pre-built files in `astral/static/` shipped in the repo are from the
+> original theme and do **not** include the feature fixes (Alpine shared
+> chunk, solution tab, rating form, etc.). After cloning / pulling, run
+> the build step below.
 
 1. Clone the repository
 
    ```bash
    git clone https://github.com/Jus-Codin/ctfd-astral-theme.git
+   cd ctfd-astral-theme/astral
    ```
 
-2. Copy the theme folder to CTFd's themes directory.
+2. **Install dependencies and rebuild the theme** (required — see warning above):
 
    ```bash
-   cp -r ctfd-astral-theme/astral /path/to/ctfd/themes/
+   yarn install
+   yarn build
    ```
 
-3. Enable the theme in CTFd's admin panel.
-4. (Optional) If you want to use the custom title screen, follow the instructions in the [Custom Title Screen](#custom-title-screen) section.
+   This regenerates `static/assets/*.js` and `static/manifest.json`
+   so CTFd serves the current source code (with `showSolution`,
+   `submitRating`, `showSubmissions`, etc. properly bound to the
+   Challenge Alpine component).
+
+3. Copy the theme folder to CTFd's themes directory.
+
+   ```bash
+   cp -r ../astral /path/to/ctfd/themes/
+   ```
+
+   (Or use the folder name your CTFd install expects, e.g. `astral-fiap`.)
+
+4. **Restart CTFd** (so the new static files and manifest are picked up),
+   then hard-reload the browser (`Ctrl+Shift+R`) to bypass the cached
+   old bundle filenames.
+
+5. Enable the theme in CTFd's admin panel.
+6. (Optional) If you want to use the custom title screen, follow the instructions in the [Custom Title Screen](#custom-title-screen) section.
+
+### Troubleshooting: Alpine expression errors in console
+
+If the browser console shows errors like:
+
+- `Alpine Expression Error: showSolution is not defined`
+- `Alpine Expression Error: getSolutionId is not defined`
+- `Alpine Expression Error: ratingSubmitted is not defined`
+- `Alpine Expression Error: LanguageForm is not defined`
+
+...it means CTFd is still serving the pre-built bundle files that
+came with the repo (e.g. `index.b4e60066.js`, `challenges.51673206.js`)
+instead of freshly-built ones. Redo step 2 (`yarn install && yarn build`)
+and confirm `static/assets/` now contains files with **different** hashes
+(e.g. `alpinejs.*.js` and an updated `index.*.js`), then redo step 4.
 
 ## Custom Title Screen
 The custom title screen is a simple splash screen that shows up when the user first visits the site. It can be shown again by clicking on the CTF logo in the top left corner in the home page.
