@@ -377,6 +377,21 @@ Alpine.data("ChallengeBoard", () => ({
 
       Alpine.nextTick(() => {
         let modal = Modal.getOrCreateInstance("[x-ref='challengeWindow']");
+
+        // Force Alpine to walk the newly-injected modal content so that
+        // x-data="Challenge" children bind their handlers correctly. Without
+        // this, @click="showSolution()"/"submitRating()" errors out because
+        // Alpine's MutationObserver can race with x-html updates.
+        Alpine.nextTick(() => {
+          if (modal._element && typeof Alpine.initTree === "function") {
+            try {
+              Alpine.initTree(modal._element);
+            } catch (e) {
+              // Ignore if Alpine already initialized the subtree
+            }
+          }
+        });
+
         modal._element.addEventListener(
           "hidden.bs.modal",
           event => {
