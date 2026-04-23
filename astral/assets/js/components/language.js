@@ -1,4 +1,3 @@
-import CTFd from "../index";
 import Alpine from "alpinejs";
 
 Alpine.data("LanguageForm", () => ({
@@ -7,15 +6,19 @@ Alpine.data("LanguageForm", () => ({
     document.cookie = `language=${language};SameSite=Lax`;
     localStorage.setItem("language", language);
 
-    // Set user language preference if logged in
-    if (CTFd.user.id) {
-      await CTFd.fetch("/api/v1/users/me", {
+    if (window.init.userId) {
+      await fetch(`${window.init.urlRoot}/api/v1/users/me`, {
         method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "CSRF-Token": window.init.csrfNonce,
+        },
         body: JSON.stringify({ language }),
       });
     }
 
-    // Reload with new language
     window.location.reload();
   },
 }));
