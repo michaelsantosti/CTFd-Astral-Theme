@@ -25,7 +25,7 @@
           {% endblock %}
 
           {% block solution %}
-            <li class="nav-item" x-cloak x-show="getSolutionId()">
+            <li class="nav-item" x-cloak x-show="$store.challenge.data.solution_id">
               <button class="nav-link challenge-solution" data-bs-target="#solution" @click="showSolution()">
                 {% trans %}Solution{% endtrans %}
               </button>
@@ -237,7 +237,7 @@
             </div>
 
             {% if Configs.challenge_ratings != "disabled" %}
-            <div x-cloak x-show="getSolvedByMe() || (response && response.data.status == 'correct')">
+            <div x-cloak x-show="$store.challenge.data.solved_by_me || (response && response.data.status == 'correct')">
               <hr>
               <div class="text-center">
                 <p class="mb-2">{% trans %}Rate this challenge:{% endtrans %}</p>
