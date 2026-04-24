@@ -16,9 +16,7 @@
             {% if Configs.view_self_submissions %}
             <li class="nav-item">
               <button class="nav-link challenge-submissions" data-bs-target="#submissions" @click="showSubmissions()">
-                {% if solves != None %}
-                  {% trans %}Submissions{% endtrans %}
-                {% endif %}
+                {% trans %}Submissions{% endtrans %}
               </button>
             </li>
             {% endif %}
@@ -109,18 +107,30 @@
                 {% for hint in hints | sort(attribute="cost") %}
                   <div x-data="Hint" x-init="id = {{ hint.id }}">
                     {% if hint.content %}
-                    <details>
-                      <summary>{% trans %}View Hint{% endtrans %}{% if hint.title %}: {{ hint.title }}{% endif %}</summary>
-                      <div>{{ hint.html | safe }}</div>
+                    <details class="hint-button">
+                      <summary class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between mb-2">
+                        <span>
+                          <i class="fa-solid fa-lightbulb me-2"></i>
+                          {% trans %}View Hint{% endtrans %}{% if hint.title %}: {{ hint.title }}{% endif %}
+                        </span>
+                        <i class="fa-solid fa-chevron-down hint-chevron"></i>
+                      </summary>
+                      <div class="hint-content p-3 mb-2">{{ hint.html | safe }}</div>
                     </details>
                     {% else %}
-                    <details @toggle="showHint(event)">
-                      {% if hint.title %}
-                      <summary>{{ hint.title }} (Cost: {{ hint.cost }} point{{ hint.cost|pluralize }})</summary>
-                      {% else %}
-                      <summary>Unlock Hint for {{ hint.cost }} point{{ hint.cost|pluralize }}</summary>
-                      {% endif %}
-                      <div x-html="html"></div>
+                    <details class="hint-button" @toggle="showHint(event)">
+                      <summary class="btn btn-outline-warning w-100 text-start d-flex align-items-center justify-content-between mb-2">
+                        <span>
+                          <i class="fa-solid fa-lock me-2"></i>
+                          {% if hint.title %}
+                          {{ hint.title }} (Cost: {{ hint.cost }} point{{ hint.cost|pluralize }})
+                          {% else %}
+                          {% trans cost=hint.cost, plural=hint.cost|pluralize %}Unlock Hint for {{ cost }} point{{ plural }}{% endtrans %}
+                          {% endif %}
+                        </span>
+                        <i class="fa-solid fa-chevron-down hint-chevron"></i>
+                      </summary>
+                      <div class="hint-content p-3 mb-2" x-html="html"></div>
                     </details>
                     {% endif %}
                   </div>
