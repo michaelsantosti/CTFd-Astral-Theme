@@ -111,7 +111,11 @@
                       <summary class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between mb-2">
                         <span>
                           <i class="fa-solid fa-lightbulb me-2"></i>
-                          {% trans %}View Hint{% endtrans %}{% if hint.title %}: {{ hint.title }}{% endif %}
+                          {% if hint.title %}
+                          {% trans title=hint.title %}View Hint: {{ title }}{% endtrans %}
+                          {% else %}
+                          {% trans %}View Hint{% endtrans %}
+                          {% endif %}
                         </span>
                         <i class="fa-solid fa-chevron-down hint-chevron"></i>
                       </summary>
@@ -123,9 +127,9 @@
                         <span>
                           <i class="fa-solid fa-lock me-2"></i>
                           {% if hint.title %}
-                          {{ hint.title }} (Cost: {{ hint.cost }} point{{ hint.cost|pluralize }})
+                          {% trans cost=hint.cost, title=hint.title %}{{ title }} (Cost: {{ cost }} point){% pluralize cost %}{{ title }} (Cost: {{ cost }} points){% endtrans %}
                           {% else %}
-                          {% trans cost=hint.cost, plural=hint.cost|pluralize %}Unlock Hint for {{ cost }} point{{ plural }}{% endtrans %}
+                          {% trans cost=hint.cost %}Unlock Hint for {{ cost }} point{% pluralize cost %}Unlock Hint for {{ cost }} points{% endtrans %}
                           {% endif %}
                         </span>
                         <i class="fa-solid fa-chevron-down hint-chevron"></i>
