@@ -32,7 +32,6 @@ Alpine.data("Hint", () => ({
     if (event.target.open) {
       let response = await CTFd.pages.challenge.loadHint(this.id);
 
-      // Hint has some kind of prerequisite or access prevention
       if (response.errors) {
         event.target.open = false;
         CTFd._functions.challenge.displayUnlockError(response);
@@ -70,6 +69,7 @@ Alpine.data("Challenge", () => ({
   solves: [],
   submissions: [],
   solution: null,
+  solutionLoaded: false,
   response: null,
   share_url: null,
   max_attempts: 0,
@@ -103,7 +103,6 @@ Alpine.data("Challenge", () => ({
           break;
       }
     } catch (error) {
-      // Ignore errors with challenge window size
       console.log("Error processing challenge_window_size");
       console.log(error);
     }
@@ -124,12 +123,21 @@ Alpine.data("Challenge", () => ({
   },
 
   async showSubmissions() {
-    let response = await CTFd.pages.users.userSubmissions("me", this.id);
-    this.submissions = response.data;
-    this.submissions.forEach(s => {
-      s.date = intl.format(new Date(s.date));
-      return s;
-    });
+    try {
+      const response = await CTFd.fetch(
+        `/api/v1/users/me/submissions?challenge_id=${this.id}`,
+        { method: "GET" },
+      );
+      const data = await response.json();
+      if (data.success && data.data) {
+        this.submissions = data.data.map(s => {
+          s.date = intl.format(new Date(s.date));
+          return s;
+        });
+      }
+    } catch (e) {
+      console.log("Error loading submissions", e);
+    }
     new Tab(this.$el).show();
   },
 
@@ -138,22 +146,56 @@ Alpine.data("Challenge", () => ({
     return data.solution_id;
   },
 
-  getSolutionState() {
+  getSolvedByMe() {
     let data = Alpine.store("challenge").data;
-    return data.solution_state;
-  },
-
-  setSolutionId(solutionId) {
-    Alpine.store("challenge").data.solution_id = solutionId;
+    return data.solved_by_me;
   },
 
   async showSolution() {
-    let solution_id = this.getSolutionId();
-    CTFd._functions.challenge.displaySolution = solution => {
-      this.solution = solution.html;
+    if (this.solutionLoaded) {
       new Tab(this.$el).show();
-    };
-    await CTFd.pages.challenge.displaySolution(solution_id);
+      return;
+    }
+
+    let solutionId = this.getSolutionId();
+    if (!solutionId) return;
+
+    try {
+      let response = await CTFd.fetch(`/api/v1/solutions/${solutionId}`, {
+        method: "GET",
+      });
+      let data = await response.json();
+
+      if (data.success && data.data && data.data.html) {
+        this.solution = data.data.html;
+        this.solutionLoaded = true;
+        new Tab(this.$el).show();
+        return;
+      }
+
+      let unlockResponse = await CTFd.fetch("/api/v1/unlocks", {
+        method: "POST",
+        body: JSON.stringify({ target: solutionId, type: "solutions" }),
+      });
+      await unlockResponse.json();
+
+      response = await CTFd.fetch(`/api/v1/solutions/${solutionId}`, {
+        method: "GET",
+      });
+      data = await response.json();
+
+      if (data.success && data.data && data.data.html) {
+        this.solution = data.data.html;
+        this.solutionLoaded = true;
+      } else {
+        this.solution =
+          '<p class="text-center text-muted pt-3">Solution not available.</p>';
+      }
+    } catch (e) {
+      this.solution =
+        '<p class="text-center text-danger pt-3">Error loading solution.</p>';
+    }
+    new Tab(this.$el).show();
   },
 
   getNextId() {
@@ -164,12 +206,9 @@ Alpine.data("Challenge", () => ({
   async nextChallenge() {
     let modal = Modal.getOrCreateInstance("[x-ref='challengeWindow']");
 
-    // TODO: Get rid of this private attribute access
-    // See https://github.com/twbs/bootstrap/issues/31266
     modal._element.addEventListener(
       "hidden.bs.modal",
       event => {
-        // Dispatch load-challenge event to call loadChallenge in the ChallengeBoard
         Alpine.nextTick(() => {
           this.$dispatch("load-challenge", this.getNextId());
         });
@@ -210,7 +249,6 @@ Alpine.data("Challenge", () => ({
       this.submission,
     );
 
-    // Challenges page might be visible to anonymous users, redirect to login on submit
     if (this.response.data.status === "authentication_required") {
       window.location = `${CTFd.config.urlRoot}/login?next=${CTFd.config.urlRoot}${window.location.pathname}${window.location.hash}`;
       return;
@@ -224,21 +262,6 @@ Alpine.data("Challenge", () => ({
       this.submission = "";
     }
 
-    // Decide whether to check for the solution
-    if (this.getSolutionId() == null) {
-      if (
-        CTFd.pages.challenge.checkSolution(
-          this.getSolutionState(),
-          Alpine.store("challenge").data,
-          this.response.data.status,
-        )
-      ) {
-        let data = await CTFd.pages.challenge.getSolution(this.id);
-        this.setSolutionId(data.id);
-      }
-    }
-
-    // Increment attempts counter
     if (
       this.max_attempts > 0 &&
       this.response.data.status != "already_solved" &&
@@ -247,20 +270,29 @@ Alpine.data("Challenge", () => ({
       this.attempts += 1;
     }
 
-    // Dispatch load-challenges event to call loadChallenges in the ChallengeBoard
     this.$dispatch("load-challenges");
   },
 
   async submitRating() {
-    const response = await CTFd.pages.challenge.submitRating(
-      this.id,
-      this.selectedRating,
-      this.ratingReview,
-    );
-    if (response.value) {
-      this.ratingValue = this.selectedRating;
-      this.ratingSubmitted = true;
-    } else {
+    try {
+      const response = await CTFd.fetch(
+        `/api/v1/challenges/${this.id}/ratings`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            value: this.selectedRating,
+            review: this.ratingReview || "",
+          }),
+        },
+      );
+      const data = await response.json();
+      if (data.success) {
+        this.ratingValue = this.selectedRating;
+        this.ratingSubmitted = true;
+      } else {
+        alert("Error submitting rating");
+      }
+    } catch (e) {
       alert("Error submitting rating");
     }
   },
@@ -304,7 +336,6 @@ Alpine.data("ChallengeBoard", () => ({
         categories.sort(getSort());
       }
     } catch (error) {
-      // Ignore errors with theme category sorting
       console.log("Error running challenge_category_order function");
       console.log(error);
     }
@@ -316,7 +347,9 @@ Alpine.data("ChallengeBoard", () => ({
     let challenges = this.challenges;
 
     if (category !== null) {
-      challenges = this.challenges.filter(challenge => challenge.category === category);
+      challenges = this.challenges.filter(
+        challenge => challenge.category === category,
+      );
     }
 
     try {
@@ -326,7 +359,6 @@ Alpine.data("ChallengeBoard", () => ({
         challenges.sort(getSort());
       }
     } catch (error) {
-      // Ignore errors with theme challenge sorting
       console.log("Error running challenge_order function");
       console.log(error);
     }
@@ -343,21 +375,36 @@ Alpine.data("ChallengeBoard", () => ({
       challenge.data.view = addTargetBlank(challenge.data.view);
       Alpine.store("challenge").data = challenge.data;
 
-      // nextTick is required here because we're working in a callback
       Alpine.nextTick(() => {
         let modal = Modal.getOrCreateInstance("[x-ref='challengeWindow']");
-        // TODO: Get rid of this private attribute access
-        // See https://github.com/twbs/bootstrap/issues/31266
+
+        // Force Alpine to walk the newly-injected modal content so that
+        // x-data="Challenge" children bind their handlers correctly. Without
+        // this, @click="showSolution()"/"submitRating()" errors out because
+        // Alpine's MutationObserver can race with x-html updates.
+        Alpine.nextTick(() => {
+          if (modal._element && typeof Alpine.initTree === "function") {
+            try {
+              Alpine.initTree(modal._element);
+            } catch (e) {
+              // Ignore if Alpine already initialized the subtree
+            }
+          }
+        });
+
         modal._element.addEventListener(
           "hidden.bs.modal",
           event => {
-            // Remove location hash
             history.replaceState(null, null, " ");
           },
           { once: true },
         );
         modal.show();
-        history.replaceState(null, null, `#${challenge.data.name}-${challengeId}`);
+        history.replaceState(
+          null,
+          null,
+          `#${challenge.data.name}-${challengeId}`,
+        );
       });
     });
   },

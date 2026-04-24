@@ -16,16 +16,14 @@
             {% if Configs.view_self_submissions %}
             <li class="nav-item">
               <button class="nav-link challenge-submissions" data-bs-target="#submissions" @click="showSubmissions()">
-                {% if solves != None %}
-                  {% trans %}Submissions{% endtrans %}
-                {% endif %}
+                {% trans %}Submissions{% endtrans %}
               </button>
             </li>
             {% endif %}
           {% endblock %}
 
           {% block solution %}
-            <li class="nav-item" x-show="getSolutionId()">
+            <li class="nav-item" x-cloak x-show="$store.challenge.data.solution_id">
               <button class="nav-link challenge-solution" data-bs-target="#solution" @click="showSolution()">
                 {% trans %}Solution{% endtrans %}
               </button>
@@ -109,18 +107,30 @@
                 {% for hint in hints | sort(attribute="cost") %}
                   <div x-data="Hint" x-init="id = {{ hint.id }}">
                     {% if hint.content %}
-                    <details>
-                      <summary>{% trans %}View Hint{% endtrans %}{% if hint.title %}: {{ hint.title }}{% endif %}</summary>
-                      <div>{{ hint.html | safe }}</div>
+                    <details class="hint-button">
+                      <summary class="btn btn-outline-info w-100 text-start d-flex align-items-center justify-content-between mb-2">
+                        <span>
+                          <i class="fa-solid fa-lightbulb me-2"></i>
+                          {% trans %}View Hint{% endtrans %}{% if hint.title %}: {{ hint.title }}{% endif %}
+                        </span>
+                        <i class="fa-solid fa-chevron-down hint-chevron"></i>
+                      </summary>
+                      <div class="hint-content p-3 mb-2">{{ hint.html | safe }}</div>
                     </details>
                     {% else %}
-                    <details @toggle="showHint(event)">
-                      {% if hint.title %}
-                      <summary>{{ hint.title }} (Cost: {{ hint.cost }} point{{ hint.cost|pluralize }})</summary>
-                      {% else %}
-                      <summary>Unlock Hint for {{ hint.cost }} point{{ hint.cost|pluralize }}</summary>
-                      {% endif %}
-                      <div x-html="html"></div>
+                    <details class="hint-button" @toggle="showHint(event)">
+                      <summary class="btn btn-outline-warning w-100 text-start d-flex align-items-center justify-content-between mb-2">
+                        <span>
+                          <i class="fa-solid fa-lock me-2"></i>
+                          {% if hint.title %}
+                          {{ hint.title }} (Cost: {{ hint.cost }} point{{ hint.cost|pluralize }})
+                          {% else %}
+                          {% trans cost=hint.cost, plural=hint.cost|pluralize %}Unlock Hint for {{ cost }} point{{ plural }}{% endtrans %}
+                          {% endif %}
+                        </span>
+                        <i class="fa-solid fa-chevron-down hint-chevron"></i>
+                      </summary>
+                      <div class="hint-content p-3 mb-2" x-html="html"></div>
                     </details>
                     {% endif %}
                   </div>
@@ -193,7 +203,6 @@
             <div class="row notification-row">
               <div class="col-12">
                 <template x-if="response">
-                  {# This alert is re-used for all alerts, so it's important not to make it dismissible #}
                   <div class="alert text-center w-100 mt-3"
                       :class="{
                         'alert-success': response.data.status == 'correct',
@@ -231,57 +240,57 @@
                         </div>
                       </div>
                       {% endif %}
-
-                      {% if Configs.challenge_ratings != "disabled" %}
-                      <div class="mt-3">
-                        <hr>
-                        <div class="text-center">
-                          <p class="mb-2">{% trans %}Rate this challenge:{% endtrans %}</p>
-                          <div class="rating-buttons mb-2" x-init="selectedRating = ratingValue || 0;">
-                            <button
-                              class="btn btn-outline-success me-2"
-                              :class="{ 'active': selectedRating === 1 }"
-                              @click="selectedRating = 1"
-                            >
-                              <i class="fa-solid fa-thumbs-up"></i>
-                            </button>
-                            <button
-                              class="btn btn-outline-danger"
-                              :class="{ 'active': selectedRating === -1 }"
-                              @click="selectedRating = -1"
-                            >
-                              <i class="fa-solid fa-thumbs-down"></i>
-                            </button>
-                          </div>
-                          <div class="mt-3">
-                            <textarea
-                              class="form-control"
-                              rows="2"
-                              x-model="ratingReview"
-                              placeholder="{% trans %}Write a review (optional){% endtrans %}"
-                              maxlength="2000"
-                            ></textarea>
-                          </div>
-                          <div class="mt-3">
-                            <button
-                              @click="submitRating()"
-                              class="btn btn-primary"
-                              :disabled="!selectedRating"
-                            >
-                              {% trans %}Submit{% endtrans %}
-                            </button>
-                          </div>
-                          <div x-show="ratingSubmitted" class="text-success mt-2">
-                            <small>{% trans %}Thank you for your rating!{% endtrans %}</small>
-                          </div>
-                        </div>
-                      </div>
-                      {% endif %}
                     </div>
                   </div>
                 </template>
               </div>
             </div>
+
+            {% if Configs.challenge_ratings != "disabled" %}
+            <div x-cloak x-show="$store.challenge.data.solved_by_me || (response && response.data.status == 'correct')">
+              <hr>
+              <div class="text-center">
+                <p class="mb-2">{% trans %}Rate this challenge:{% endtrans %}</p>
+                <div class="rating-buttons mb-2" x-init="selectedRating = ratingValue || 0;">
+                  <button
+                    class="btn btn-outline-success me-2"
+                    :class="{ 'active': selectedRating === 1 }"
+                    @click="selectedRating = 1"
+                  >
+                    <i class="fa-solid fa-thumbs-up"></i>
+                  </button>
+                  <button
+                    class="btn btn-outline-danger"
+                    :class="{ 'active': selectedRating === -1 }"
+                    @click="selectedRating = -1"
+                  >
+                    <i class="fa-solid fa-thumbs-down"></i>
+                  </button>
+                </div>
+                <div class="mt-3">
+                  <textarea
+                    class="form-control"
+                    rows="2"
+                    x-model="ratingReview"
+                    placeholder="{% trans %}Write a review (optional){% endtrans %}"
+                    maxlength="2000"
+                  ></textarea>
+                </div>
+                <div class="mt-3">
+                  <button
+                    @click="submitRating()"
+                    class="btn btn-primary"
+                    :disabled="!selectedRating"
+                  >
+                    {% trans %}Submit{% endtrans %}
+                  </button>
+                </div>
+                <div x-show="ratingSubmitted" class="text-success mt-2">
+                  <small>{% trans %}Thank you for your rating!{% endtrans %}</small>
+                </div>
+              </div>
+            </div>
+            {% endif %}
           </div>
 
           <div role="tabpanel" class="tab-pane fade" id="submissions">
@@ -345,6 +354,11 @@
                 <div class="challenge-solution-content pt-3">
                   <template x-if="solution">
                     <div x-html="solution" style="white-space: pre-wrap;">
+                    </div>
+                  </template>
+                  <template x-if="!solution">
+                    <div class="text-center pt-3">
+                      <i class="fas fa-circle-notch fa-spin fa-2x"></i>
                     </div>
                   </template>
                 </div>
